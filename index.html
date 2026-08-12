@@ -162,6 +162,12 @@ body{
 .pcell.yet{opacity:.4} .pcell.yet i{color:var(--ink2)}
 .pcell.ok{background:#e6f7ec;box-shadow:inset 0 0 0 2px var(--green-d)} .pcell.ok i{color:var(--green-d)}
 .pcell.ng{background:#fdeaea;box-shadow:inset 0 0 0 2px #e05a5a} .pcell.ng i{color:#e05a5a}
+/* あいて えらび */
+.vsbox{background:#fff;border-radius:20px;padding:12px 14px;box-shadow:0 5px 0 rgba(0,0,0,.08);
+  width:min(230px,92vw);display:flex;flex-direction:column;gap:8px;align-items:center}
+.vsbtn{width:100%;background:#f3ece4;color:var(--ink2)}
+.vsbtn.on{background:var(--blue);color:#fff;box-shadow:0 4px 0 var(--blue-d)}
+.vshint{font-size:11px;color:var(--ink2);font-weight:700;line-height:1.5;text-align:center;text-wrap:pretty}
 .pblegend{display:flex;gap:10px;justify-content:center;margin-top:9px;font-size:11px;font-weight:700}
 .lg.ok{color:var(--green-d)} .lg.ng{color:#e05a5a} .lg.yet{color:var(--ink2)}
 
@@ -311,6 +317,12 @@ body{
   </div>
   <div class="stage" id="gselect">
     <div class="courses" id="gstages"></div>
+    <div class="vsbox">
+      <div class="pbtitle">あいては だれ？</div>
+      <button class="btn vsbtn" id="vs0">コンピュータと</button>
+      <button class="btn vsbtn" id="vs1">ふたりで</button>
+      <div class="vshint" id="vshint"></div>
+    </div>
   </div>
   <div class="gwrap" id="gplay" style="display:none">
     <div class="hand" id="hand1"><span class="lb">あいての もちごま</span></div>
@@ -686,8 +698,8 @@ function qShowSelect(){
     const row=document.createElement('div');
     row.className='crow'+(ok===co.ks.length?' cleared':'');
     row.innerHTML='<div style="width:44px">'+pieceSVG(co.ks[co.ks.length-1],0)+'</div>'+
-      '<div class="cn">'+co.nm+'<div class="cs">こま '+ok+'／'+co.ks.length+' せいかい　'+
-        (ok===co.ks.length?'ぜんぶ クリア！':'')+'</div></div>'+
+      '<div class="cn">'+co.nm+'<div class="cs">こま '+ok+'／'+co.ks.length+' せいかい'+
+        (ok===co.ks.length?'　ぜんぶ クリア！':'')+'</div></div>'+
       '<div class="stars">'+stars(best)+'</div>';
     row.onclick=function(){ snd.tap(); qStart(co); };
     wrap.appendChild(row);
@@ -809,6 +821,9 @@ const STAGES=[
   desc:'ほんものと おなじ ひらて',hint:'ここまで きたら もう しょうぎが させる'}
 ];
 let GW=5, GH=5, GZONE=1, gStage=STAGES[1];
+let gVs=0;                                   // 0=コンピュータと / 1=ふたりで
+function isHuman(side){ return gVs===1 || side===0; }
+function sideName(side){ return side===0 ? 'したがわ（せんて）' : 'うえがわ（ごて）'; }
 const VAL={FU:100,KY:250,KE:250,GI:520,KI:560,KA:720,HI:820,TO:560,NY:560,NK:560,NG:560,UM:960,RY:1060,OU:100000};
 let gBoardEl=null, G=null, gLevel=0, gBusy=false, gSel=null, gDropKind=null, gHist=[];  // 0=よわい / 1=ふつう
 
@@ -1032,6 +1047,8 @@ function gameEnter(){
       document.getElementById('glevel').textContent='つよさ：'+(gLevel===0?'よわい':'ふつう');
     };
     document.getElementById('ghelp').onclick=showRules;
+    document.getElementById('vs0').onclick=function(){ gVs=0; snd.tap(); showStages(); };
+    document.getElementById('vs1').onclick=function(){ gVs=1; snd.tap(); showStages(); };
     document.getElementById('gback').onclick=function(){
       snd.tap();
       if(document.getElementById('gplay').style.display==='none') go('home'); else showStages();
@@ -1046,6 +1063,11 @@ function showStages(){
   document.getElementById('gplay').style.display='none';
   document.getElementById('gbar').style.display='none';
   document.getElementById('gtitle').textContent='しょうぎの ステップ';
+  document.getElementById('vs0').className='btn vsbtn'+(gVs===0?' on':'');
+  document.getElementById('vs1').className='btn vsbtn'+(gVs===1?' on':'');
+  document.getElementById('vshint').textContent = gVs===1
+    ? 'ばんを はさんで むかいあって すわろう。うえがわの こまは さかさまに 見えるよ（ほんものの しょうぎと おなじ）'
+    : 'コンピュータに かつと ★が つくよ';
   const wrap=document.getElementById('gstages'); wrap.innerHTML='';
   if(!save.stage) save.stage={};
   STAGES.forEach(function(st,i){
@@ -1068,6 +1090,9 @@ function startStage(st){
   document.getElementById('gbar').style.display='';
   document.getElementById('gbar').style.visibility='';
   document.getElementById('gtitle').textContent=st.no+' '+st.nm;
+  const lv=document.getElementById('glevel');
+  if(gVs===1){ lv.textContent='ふたりで たいせん'; lv.disabled=true; }
+  else { lv.textContent='つよさ：'+(gLevel===0?'よわい':'ふつう'); lv.disabled=false; }
   // ばんの おおきさが かわるので つくり直す
   const wrap=document.getElementById('gboardwrap'); wrap.innerHTML='';
   const old=BOARDS.indexOf(gBoardEl); if(old>=0) BOARDS.splice(old,1);
@@ -1075,14 +1100,18 @@ function startStage(st){
   wrap.appendChild(gBoardEl); fitBoard(gBoardEl);
   gBoardEl.addEventListener('click', onCellClick);
   newGame();
-  setStatus(st.hint);
+  setStatus(st.hint + (gVs===1 ? '　／　<b>'+sideName(0)+'</b>から！' : ''));
 }
-function newGame(){ G=initGame(); gSel=null; gDropKind=null; gHist=[]; gBusy=false; drawGame(); setStatus('きみの ばん！ こまを タップしてね'); }
+function newGame(){
+  G=initGame(); gSel=null; gDropKind=null; gHist=[]; gBusy=false; drawGame();
+  setStatus(gVs===1 ? sideName(0)+'から はじめよう！' : 'きみの ばん！ こまを タップしてね');
+}
 function setStatus(t,warn){
   const el=document.getElementById('gstatus');
   el.innerHTML=t; el.className='status'+(warn?' warn':'');
 }
-function myLegal(){ return legalMoves(G,0,false); }
+function myLegal(){ return legalMoves(G,G.turn,false); }
+function canOperate(){ return !G.over && !gBusy && isHuman(G.turn); }
 function drawGame(){
   for(let r=0;r<GH;r++) for(let c=0;c<GW;c++){
     const cell=gBoardEl.children[r*GW+c];
@@ -1090,7 +1119,7 @@ function drawGame(){
     cell.className='cell';
     cell.innerHTML=p?pieceSVG(p.kind,p.side):'';
     if(G.last && G.last.c===c && G.last.r===r) cell.classList.add('last');
-    if(p && p.side===0 && !G.over && !gBusy) cell.classList.add('clickable');
+    if(p && p.side===G.turn && canOperate()) cell.classList.add('clickable');
   }
   if(gSel){
     const cell=gBoardEl.children[gSel.r*GW+gSel.c];
@@ -1127,14 +1156,17 @@ function drawGame(){
 }
 function drawHand(side){
   const el=document.getElementById('hand'+side);
-  el.innerHTML='<span class="lb">'+(side===0?'きみの もちごま':'あいての もちごま')+'</span>';
+  const lb = gVs===1 ? sideName(side)+'の もちごま'
+                     : (side===0?'きみの もちごま':'あいての もちごま');
+  el.innerHTML='<span class="lb">'+lb+'</span>';
   const ks=Object.keys(G.h[side]).filter(function(k){return G.h[side][k]>0;});
   if(!ks.length){ el.innerHTML+='<span class="lb" style="opacity:.5">なし</span>'; return; }
+  const active = (side===G.turn && canOperate());
   ks.forEach(function(k){
     const d=document.createElement('div');
-    d.className='hpc'+(side===0&&gDropKind===k?' on':'');
+    d.className='hpc'+(active&&gDropKind===k?' on':'');
     d.innerHTML=pieceSVG(k,side)+'<span class="ct">'+G.h[side][k]+'</span>';
-    if(side===0 && !G.over && !gBusy){
+    if(active){
       d.style.cursor='pointer';
       d.onclick=function(){ gSel=null; gDropKind=(gDropKind===k?null:k); snd.tap(); drawGame();
         if(gDropKind) setStatus('うつ ばしょを えらんでね'); };
@@ -1143,7 +1175,7 @@ function drawHand(side){
   });
 }
 function onCellClick(e){
-  if(gBusy||G.over) return;
+  if(!canOperate()) return;
   const cell=e.target.closest('.cell'); if(!cell) return;
   const c=+cell.dataset.c, r=+cell.dataset.r;
   // うつ
@@ -1159,12 +1191,12 @@ function onCellClick(e){
     if(cands.length===2){ askPromote(cands); return; }
   }
   const p=G.b[r][c];
-  if(p&&p.side===0){
+  if(p&&p.side===G.turn){
     gSel={c:c,r:r}; snd.tap(); drawGame();
     setStatus('<b>'+P[p.kind].n+'</b>：'+P[p.kind].w);
-  }else if(p){                       // あいての こまも タップで うごきかたが わかる
+  }else if(p){                       // てばんで ない こまも タップで うごきかたが わかる
     gSel=null; snd.tap(); drawGame();
-    setStatus('あいての <b>'+P[p.kind].n+'</b>：'+P[p.kind].w);
+    setStatus((gVs===1?sideName(p.side):'あいて')+'の <b>'+P[p.kind].n+'</b>：'+P[p.kind].w);
   }else{ gSel=null; drawGame(); }
 }
 function askPromote(cands){
@@ -1180,9 +1212,14 @@ function askPromote(cands){
 }
 function doPlayerMove(m){
   gHist.push(cloneS(G));
-  G.turn=0; applyMove(G,m); snd.put();
+  applyMove(G,m); snd.put();
   drawGame();
   if(checkEnd()) return;
+  if(gVs===1){                                   // ふたりで：あいての ばんに するだけ
+    if(inCheck(G,G.turn)) setStatus('⚠ おうてだよ！ '+sideName(G.turn)+'は おうを まもろう', true);
+    else setStatus(sideName(G.turn)+'の ばん！');
+    return;
+  }
   gBusy=true; setStatus('あいてが かんがえて いるよ…');
   drawGame();
   setTimeout(function(){
@@ -1202,6 +1239,9 @@ function checkEnd(){
   if(G.ply>=(GW>=9?320:200)){ finish(2); return true; }   // ながすぎる しょうぶは ひきわけ（ほんばんは ながめ）
   return false;
 }
+const CROWN2='<svg viewBox="0 0 120 78" style="width:44px;height:29px;display:inline-block;vertical-align:-4px;margin-right:6px">'+
+ '<path d="M10 68 L4 18 L34 40 L60 6 L86 40 L116 18 L110 68 Z" fill="#ffd166" stroke="#e0a52e" stroke-width="6" stroke-linejoin="round"/>'+
+ '<circle cx="60" cy="54" r="8" fill="#ff8fab"/></svg>';
 const CROWN='<svg viewBox="0 0 120 78" style="width:104px;height:68px;display:block;margin:0 auto 8px">'+
  '<path d="M10 68 L4 18 L34 40 L60 6 L86 40 L116 18 L110 68 Z" fill="#ffd166" stroke="#e0a52e" stroke-width="5" stroke-linejoin="round"/>'+
  '<circle cx="60" cy="6" r="7" fill="#ff8fab" stroke="#e0a52e" stroke-width="3"/>'+
@@ -1212,15 +1252,22 @@ const CROWN='<svg viewBox="0 0 120 78" style="width:104px;height:68px;display:bl
    すぐ ダイアログを 出すと「どの手で かったのか」が わからなく なるため */
 function finish(winner){
   G.over=1; gBusy=false; drawGame();
-  if(winner===0) setStatus('つんだ！ あいての おうが どこにも いけない', true);
-  else if(winner===1) setStatus('つんでしまった… きみの おうが うごけない', true);
-  else setStatus('ながい しょうぶだったね');
-  if(winner===0) snd.win(); else if(winner===1) snd.lose();
+  if(winner===2) setStatus('ながい しょうぶだったね');
+  else if(gVs===1) setStatus('つんだ！ '+sideName(1-winner)+'の おうが どこにも いけない', true);
+  else if(winner===0) setStatus('つんだ！ あいての おうが どこにも いけない', true);
+  else setStatus('つんでしまった… きみの おうが うごけない', true);
+  if(winner===2){} else if(gVs===1||winner===0) snd.win(); else snd.lose();
   setTimeout(function(){ finishDialog(winner); }, 1500);
 }
 function finishDialog(winner){
   // ばんを 上に よせて、けっかパネルの ぶんの すきまを つくる（ばんを かくさない）
   document.getElementById('gplay').classList.add('up');
+  if(gVs===1 && winner!==2){          // ふたりで たいせん（ステージクリアには しない）
+    overlay(CROWN2+sideName(winner)+'の かち！','おめでとう！ こうたいして もう1かい やる？',
+      [{t:'もういちど',cls:'green',f:function(){closeOverlay();newGame();}},
+       {t:'ステップ いちらん',cls:'',f:function(){closeOverlay();showStages();}}],'bottom');
+    return;
+  }
   if(winner===0){
     if(!save.stage) save.stage={};
     const first=!save.stage[gStage.id];
@@ -1247,7 +1294,8 @@ function undo(){
     return;
   }
   G=gHist.pop(); gSel=null; gDropKind=null; G.over=0; snd.tap();
-  drawGame(); setStatus('もどしたよ。きみの ばん！');
+  drawGame();
+  setStatus('もどしたよ。'+(gVs===1? sideName(G.turn)+'の ばん！' : 'きみの ばん！'));
 }
 function showRules(){
   snd.tap();
