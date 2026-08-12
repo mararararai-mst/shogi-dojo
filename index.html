@@ -82,22 +82,22 @@ body{
 /* ---------- 盤 ---------- */
 .stage{flex:1;min-height:0;display:flex;align-items:center;justify-content:center;gap:clamp(8px,2vw,26px);padding:0 12px 10px;flex-wrap:wrap}
 .board{
-  display:grid;aspect-ratio:1;background:linear-gradient(160deg,var(--wood),var(--wood-d));
+  display:grid;aspect-ratio:1;background:#b0824a;      /* すきまが マス目の 線に なる */
   border:5px solid #8a6234;border-radius:8px;box-shadow:0 7px 0 #7a5429, 0 12px 22px rgba(0,0,0,.18);
-  padding:3px;gap:2px;
+  padding:2px;gap:2px;
 }
 .board.b7{width:min(52vw,58vh)}     /* ずかん・クイズ（7×7） */
 .board.b5{width:min(78vw,46vh)}     /* たいきょく（5×5） */
-.cell{position:relative;background:rgba(255,255,255,.14);border-radius:3px;display:flex;align-items:center;justify-content:center;cursor:default}
+.cell{position:relative;background:linear-gradient(160deg,var(--wood),var(--wood-d));border-radius:2px;display:flex;align-items:center;justify-content:center;cursor:default}
 .cell.clickable{cursor:pointer}
 .cell .piece{width:88%;height:88%;display:block;filter:drop-shadow(0 2px 1px rgba(0,0,0,.25))}
 .cell.mv::after{content:'';position:absolute;width:36%;height:36%;border-radius:50%;
   background:rgba(79,187,128,.8);box-shadow:0 0 0 3px rgba(255,255,255,.6);animation:pop .22s ease-out backwards}
 .cell.cap::after{width:82%;height:82%;background:transparent;border:6px solid rgba(242,103,139,.85);box-shadow:none}
 @keyframes pop{from{transform:scale(0);opacity:0}to{transform:scale(1);opacity:1}}
-.cell.sel{background:rgba(255,209,102,.75);box-shadow:inset 0 0 0 3px #f0b93f}
-.cell.last{background:rgba(142,199,245,.42)}
-.cell.danger{background:rgba(255,120,120,.42);animation:blink 1.1s ease-in-out infinite}
+.cell.sel{background:#ffdf9b;box-shadow:inset 0 0 0 3px #f0b93f}
+.cell.last{background:#d8ebfb}
+.cell.danger{background:#ffd0d0;animation:blink 1.1s ease-in-out infinite}
 @keyframes blink{0%,100%{box-shadow:inset 0 0 0 4px #e05a5a}50%{box-shadow:inset 0 0 0 4px rgba(224,90,90,.2)}}
 .cell.pick::after{content:'';position:absolute;inset:6%;border-radius:6px;background:rgba(255,143,171,.45);
   box-shadow:inset 0 0 0 4px var(--pink-d)}
@@ -335,8 +335,8 @@ function pieceSVG(kind, side, scale){
   const col = d.pr ? '#c62828' : '#3f2d1a';
   let label;
   if(d.c2){
-    label = '<text x="50" y="49" font-size="31">'+d.c2[0]+'</text>'+
-            '<text x="50" y="85" font-size="31">'+d.c2[1]+'</text>';
+    label = '<text x="50" y="46" font-size="33">'+d.c2[0]+'</text>'+
+            '<text x="50" y="88" font-size="33">'+d.c2[1]+'</text>';
   } else {
     label = '<text x="50" y="67" font-size="54">'+d.c+'</text>';
   }
@@ -383,6 +383,7 @@ function makeBoard(W,H,cls){
   const el=document.createElement('div');
   el.className='board '+(cls||'');
   el.style.gridTemplateColumns='repeat('+W+',1fr)';
+  el.style.gridTemplateRows='repeat('+H+',1fr)';   // ← これが ないと こまの ない行が つぶれる
   for(let r=0;r<H;r++) for(let c=0;c<W;c++){
     const d=document.createElement('div');
     d.className='cell'; d.dataset.c=c; d.dataset.r=r;
