@@ -81,13 +81,12 @@ body{
 
 /* ---------- 盤 ---------- */
 .stage{flex:1;min-height:0;display:flex;align-items:center;justify-content:center;gap:clamp(8px,2vw,26px);padding:0 12px 10px;flex-wrap:wrap}
+/* おおきさは JS の fitBoard() が「マス＝せいすう px」で きめる（1fr だと ずれるため） */
 .board{
-  display:grid;aspect-ratio:1;background:#b0824a;      /* すきまが マス目の 線に なる */
+  display:grid;background:#b0824a;                     /* すきまが マス目の 線に なる */
   border:5px solid #8a6234;border-radius:8px;box-shadow:0 7px 0 #7a5429, 0 12px 22px rgba(0,0,0,.18);
   padding:2px;gap:2px;
 }
-.board.b7{width:min(52vw,58vh)}     /* ずかん・クイズ（7×7） */
-.board.b5{width:min(78vw,46vh)}     /* たいきょく（5×5） */
 .cell{position:relative;background:linear-gradient(160deg,var(--wood),var(--wood-d));border-radius:2px;display:flex;align-items:center;justify-content:center;cursor:default}
 .cell.clickable{cursor:pointer}
 .cell .piece{width:88%;height:88%;display:block;filter:drop-shadow(0 2px 1px rgba(0,0,0,.25))}
@@ -132,6 +131,8 @@ body{
 .crow .cn{font-size:clamp(16px,2vw,20px);font-weight:900;flex:1;text-align:left}
 .crow .cs{font-size:12px;color:var(--ink2);font-weight:700}
 .stars{font-size:19px;letter-spacing:2px;color:var(--yellow-d)}
+.stgno{font-size:clamp(19px,2.4vw,25px);font-weight:900;color:var(--pink-d);width:1.6em;text-align:center;flex:0 0 auto}
+#gstages .crow{width:min(520px,92vw)}
 
 /* ---------- 対局 ---------- */
 .gwrap{display:flex;flex-direction:column;align-items:center;gap:6px;min-height:0;flex:1;justify-content:center}
@@ -171,8 +172,6 @@ body{
   .stage{flex-direction:column;gap:8px}
   .pl{width:min(96vw,430px);grid-template-columns:repeat(8,1fr)}
   .info,.qwrap{width:min(96vw,430px)}
-  .board.b7{width:min(90vw,42vh)}   /* たてならびに なるので よこはばを つかう */
-  .board.b5{width:min(86vw,40vh)}
   .bubble .tx{display:none}          /* せまい ときは くわしい せつめいを かくす */
   .tip{display:none}
 }
@@ -200,8 +199,8 @@ body{
     </div>
     <div class="card c3" data-go="game">
       <div class="ic" id="ic3"></div>
-      <div class="nm">ミニしょうぎ</div>
-      <div class="ds">5×5の しょうぎで<br>コンピュータと たいせん</div>
+      <div class="nm">しょうぎ ステップ</div>
+      <div class="ds">3×4から 9×9へ<br>だんだん ほんものに</div>
     </div>
   </div>
   <div class="foot">はじめてのひとは「こまずかん」から　<button class="btn sm" id="mute">おと ON</button></div>
@@ -256,17 +255,20 @@ body{
 <!-- ================= ミニしょうぎ ================= -->
 <section id="game" class="screen">
   <div class="hd">
-    <button class="btn sm" data-go="home">← もどる</button>
-    <h2>ミニしょうぎ</h2><div class="sp"></div>
+    <button class="btn sm" id="gback">← もどる</button>
+    <h2 id="gtitle">しょうぎの ステップ</h2><div class="sp"></div>
     <button class="btn sm yellow" id="glevel">つよさ：よわい</button>
   </div>
-  <div class="gwrap">
+  <div class="stage" id="gselect">
+    <div class="courses" id="gstages"></div>
+  </div>
+  <div class="gwrap" id="gplay" style="display:none">
     <div class="hand" id="hand1"><span class="lb">あいての もちごま</span></div>
     <div id="gboardwrap"></div>
     <div class="hand" id="hand0"><span class="lb">きみの もちごま</span></div>
     <div class="status" id="gstatus"></div>
   </div>
-  <div class="gbar">
+  <div class="gbar" id="gbar" style="display:none">
     <button class="btn sm" id="gundo">まった</button>
     <button class="btn sm pink" id="gnew">はじめから</button>
     <button class="btn sm blue" id="ghelp">ルール</button>
@@ -382,15 +384,36 @@ function emptyBoard(W,H){
 function makeBoard(W,H,cls){
   const el=document.createElement('div');
   el.className='board '+(cls||'');
-  el.style.gridTemplateColumns='repeat('+W+',1fr)';
-  el.style.gridTemplateRows='repeat('+H+',1fr)';   // ← これが ないと こまの ない行が つぶれる
+  el.dataset.w=W; el.dataset.h=H; el.dataset.kind=cls||'b7';
   for(let r=0;r<H;r++) for(let c=0;c<W;c++){
     const d=document.createElement('div');
     d.className='cell'; d.dataset.c=c; d.dataset.r=r;
     el.appendChild(d);
   }
+  BOARDS.push(el); fitBoard(el);
   return el;
 }
+/* マスを「せいすう px」で そろえる。1fr だと わりきれず 1〜2px ずれる */
+const BOARDS=[];
+function fitBoard(el){
+  const W=+el.dataset.w, H=+el.dataset.h;
+  const narrow=window.matchMedia('(max-width:760px)').matches;
+  const gap=2, chrome=14;                       // border5×2 ＋ padding2×2
+  let maxW, reserve;
+  if(el.dataset.kind==='bg'){ maxW=innerWidth*(narrow?0.92:0.84); reserve=narrow?214:236; }
+  else { maxW=innerWidth*(narrow?0.90:0.52); reserve=narrow?268:96; }
+  const maxH=innerHeight-reserve;
+  let cell=Math.floor(Math.min((maxW-chrome-gap*(W-1))/W, (maxH-chrome-gap*(H-1))/H));
+  cell=Math.max(16,cell);
+  el.style.width=(cell*W+gap*(W-1)+chrome)+'px';
+  el.style.gridTemplateColumns='repeat('+W+','+cell+'px)';
+  el.style.gridTemplateRows='repeat('+H+','+cell+'px)';
+}
+let fitTimer=null;
+window.addEventListener('resize', function(){
+  clearTimeout(fitTimer);
+  fitTimer=setTimeout(function(){ BOARDS.forEach(fitBoard); }, 80);
+});
 function cellOf(boardEl,c,r){ return boardEl.children[r*(+boardEl.dataset.w)+c]; }
 
 /* ---------------- おと ---------------- */
@@ -418,6 +441,7 @@ const snd={
 /* ---------------- がめん きりかえ ---------------- */
 function go(id){
   document.querySelectorAll('.screen').forEach(function(s){ s.classList.toggle('on', s.id===id); });
+  BOARDS.forEach(fitBoard);            // がめんを ひらく たびに ばんの おおきさを 計算しなおす
   if(id==='zukan') zukanEnter();
   if(id==='quiz') quizEnter();
   if(id==='game') gameEnter();
@@ -656,33 +680,65 @@ function qFinish(){
 /* ================================================================
    ③ ミニしょうぎ（5×5：５五しょうぎ）
    ================================================================ */
-const GW=5, GH=5;
+/* ステップ：ばんを ひろげ → こまを ふやして、だんだん ほんしょうぎへ */
+const STAGES=[
+ {id:'s1',no:'①',nm:'ちびしょうぎ',sz:'3×4',W:3,H:4,zone:1,
+  desc:'おう・きん・ぎん・ふ の 4しゅるいだけ',hint:'まずは ここから。すぐ しょうぶが つく'},
+ {id:'s2',no:'②',nm:'ミニしょうぎ',sz:'5×5',W:5,H:5,zone:1,
+  desc:'ひしゃ・かくが なかまいり（6しゅるい）',hint:'とった こまを うつ れんしゅう'},
+ {id:'s3',no:'③',nm:'ほんばん 10まいおち',sz:'9×9',W:9,H:9,zone:3,
+  desc:'あいては おうと ふ だけ',hint:'ほんものの ばん。きょう・けいも つかう'},
+ {id:'s4',no:'④',nm:'ほんばん 6まいおち',sz:'9×9',W:9,H:9,zone:3,
+  desc:'あいてに きんと ぎんが ふえる',hint:'あいてじんは おく3れつに ひろがる'},
+ {id:'s5',no:'⑤',nm:'ほんしょうぎ',sz:'9×9',W:9,H:9,zone:3,
+  desc:'ほんものと おなじ ひらて',hint:'ここまで きたら もう しょうぎが させる'}
+];
+let GW=5, GH=5, GZONE=1, gStage=STAGES[1];
 const VAL={FU:100,KY:250,KE:250,GI:520,KI:560,KA:720,HI:820,TO:560,NY:560,NK:560,NG:560,UM:960,RY:1060,OU:100000};
 let gBoardEl=null, G=null, gLevel=0, gBusy=false, gSel=null, gDropKind=null, gHist=[];  // 0=よわい / 1=ふつう
 
 function initGame(){
-  const b=emptyBoard(GW,GH);
-  const back=['OU','KI','GI','KA','HI'];
-  for(let c=0;c<GW;c++){
-    b[GH-1][c]={kind:back[c],side:0};
-    b[0][c]={kind:back[GW-1-c],side:1};
+  const st=gStage;
+  const b=emptyBoard(st.W,st.H);
+  function put(c,r,kind,side){ b[r][c]={kind:kind,side:side}; }
+  if(st.W===3){                                   // ① ちびしょうぎ
+    const back=['GI','OU','KI'];
+    for(let c=0;c<3;c++){ put(c,3,back[c],0); put(2-c,0,back[c],1); }
+    put(1,2,'FU',0); put(1,1,'FU',1);
+  }else if(st.W===5){                             // ② ５五しょうぎ
+    const back=['OU','KI','GI','KA','HI'];
+    for(let c=0;c<5;c++){ put(c,4,back[c],0); put(4-c,0,back[c],1); }
+    put(4,3,'FU',0); put(0,1,'FU',1);
+  }else{                                          // ③④⑤ 9×9（あいては こまおち）
+    const back=['KY','KE','GI','KI','OU','KI','GI','KE','KY'];
+    for(let c=0;c<9;c++){ put(c,8,back[c],0); put(c,6,'FU',0); }
+    put(1,7,'KA',0); put(7,7,'HI',0);
+    let ob=back.slice();
+    if(st.id==='s3') ob=[null,null,null,null,'OU',null,null,null,null];
+    else if(st.id==='s4') ob=[null,null,'GI','KI','OU','KI','GI',null,null];
+    for(let c=0;c<9;c++){ if(ob[c]) put(c,0,ob[c],1); put(c,2,'FU',1); }
+    if(st.id==='s5'){ put(7,1,'KA',1); put(1,1,'HI',1); }
   }
-  b[GH-2][GW-1]={kind:'FU',side:0};
-  b[1][0]={kind:'FU',side:1};
   return {b:b, h:[{},{}], turn:0, last:null, over:0, ply:0};
+}
+function setStage(st){
+  gStage=st; GW=st.W; GH=st.H; GZONE=st.zone;
 }
 function cloneS(s){
   return {b:s.b.map(function(row){return row.map(function(x){return x?{kind:x.kind,side:x.side}:null;});}),
           h:[Object.assign({},s.h[0]),Object.assign({},s.h[1])], turn:s.turn, last:s.last?{c:s.last.c,r:s.last.r}:null,
           over:s.over, ply:s.ply||0};
 }
-function inZone(side,r){ return side===0 ? (r===0) : (r===GH-1); }
-function canPromote(kind,side,fr,tr){ return !!PROMO[kind] && (inZone(side,fr)||inZone(side,tr)); }
-function mustPromote(kind,side,tr){
-  if(kind==='FU'||kind==='KY') return inZone(side,tr);
-  if(kind==='KE') return side===0 ? tr<=1 : tr>=GH-2;
+/* あいてじん（なれる ところ）＝ ばんに よって 1れつ or 3れつ */
+function inZone(side,r){ return side===0 ? (r<GZONE) : (r>=GH-GZONE); }
+/* いきどころの ない こま は「いちばん おくの れつ」で きまる（あいてじん とは べつ） */
+function deadRank(kind,side,r){
+  if(kind==='FU'||kind==='KY') return side===0 ? r===0 : r===GH-1;
+  if(kind==='KE') return side===0 ? r<=1 : r>=GH-2;
   return false;
 }
+function canPromote(kind,side,fr,tr){ return !!PROMO[kind] && (inZone(side,fr)||inZone(side,tr)); }
+function mustPromote(kind,side,tr){ return deadRank(kind,side,tr); }
 function findKing(s,side){
   for(let r=0;r<GH;r++) for(let c=0;c<GW;c++){
     const p=s.b[r][c]; if(p&&p.side===side&&p.kind==='OU') return {c:c,r:r};
@@ -746,15 +802,14 @@ function dropMoves(s,side,noUchifu){
       if(s.b[r][c]) continue;
       if(k==='FU'){
         if(badCol[c]) continue;                     // 二歩
-        if(inZone(side,r)) continue;                // いきどころの ない こま
+        if(deadRank('FU',side,r)) continue;         // いきどころの ない こま
         if(!noUchifu){
           const t=cloneS(s);
           t.b[r][c]={kind:'FU',side:side}; t.h[side]['FU']--; t.turn=1-side;
           if(inCheck(t,1-side) && legalMoves(t,1-side,true).length===0) continue; // うちふづめ
         }
       }
-      if(k==='KY' && inZone(side,r)) continue;
-      if(k==='KE' && (side===0? r<=1 : r>=GH-2)) continue;
+      if((k==='KY'||k==='KE') && deadRank(k,side,r)) continue;
       list.push({from:null,to:{c:c,r:r},drop:k,promote:false,cap:false});
     }
   }
@@ -786,10 +841,11 @@ function evalS(s){
   }
   // あいての おうに ちかづく ほど すこし プラス（＝せめる うごきに なる。
   // これが ないと こまを とりつくした あと ぐるぐる して しょうぶが つかない）
+  const maxD=Math.max(GW,GH)-1, nw=(GW<=5?7:3);   // ひろい ばんでは 重みを 小さく
   for(let i=0;i<on.length;i++){
     const e=on[i];
-    if(e.p.side===0 && k1) sc += (4-Math.max(Math.abs(e.c-k1.c),Math.abs(e.r-k1.r)))*7;
-    else if(e.p.side===1 && k0) sc -= (4-Math.max(Math.abs(e.c-k0.c),Math.abs(e.r-k0.r)))*7;
+    if(e.p.side===0 && k1) sc += (maxD-Math.max(Math.abs(e.c-k1.c),Math.abs(e.r-k1.r)))*nw;
+    else if(e.p.side===1 && k0) sc -= (maxD-Math.max(Math.abs(e.c-k0.c),Math.abs(e.r-k0.r)))*nw;
   }
   for(let side=0;side<2;side++){
     for(const k in s.h[side]) sc += (side===0?1:-1)*(VAL[k]*1.15)*s.h[side][k];
@@ -850,11 +906,10 @@ function cpuMove(s){
 }
 
 /* ---------- 対局 UI ---------- */
+let gInit=false;
 function gameEnter(){
-  if(!gBoardEl){
-    gBoardEl=makeBoard(GW,GH,'b5'); gBoardEl.dataset.w=GW;
-    document.getElementById('gboardwrap').appendChild(gBoardEl);
-    gBoardEl.addEventListener('click', onCellClick);
+  if(!gInit){
+    gInit=true;
     document.getElementById('gnew').onclick=function(){ snd.tap(); newGame(); };
     document.getElementById('gundo').onclick=undo;
     document.getElementById('glevel').onclick=function(){
@@ -862,9 +917,48 @@ function gameEnter(){
       document.getElementById('glevel').textContent='つよさ：'+(gLevel===0?'よわい':'ふつう');
     };
     document.getElementById('ghelp').onclick=showRules;
-    newGame();
+    document.getElementById('gback').onclick=function(){
+      snd.tap();
+      if(document.getElementById('gplay').style.display==='none') go('home'); else showStages();
+    };
   }
-  drawGame();
+  showStages();
+}
+/* ステージ えらび */
+function showStages(){
+  document.getElementById('gselect').style.display='';
+  document.getElementById('gplay').style.display='none';
+  document.getElementById('gbar').style.display='none';
+  document.getElementById('gtitle').textContent='しょうぎの ステップ';
+  const wrap=document.getElementById('gstages'); wrap.innerHTML='';
+  if(!save.stage) save.stage={};
+  STAGES.forEach(function(st,i){
+    const cleared=!!save.stage[st.id];
+    const prevOk = i===0 || !!save.stage[STAGES[i-1].id];
+    const row=document.createElement('div');
+    row.className='crow';
+    row.innerHTML='<div class="stgno">'+st.no+'</div>'+
+      '<div class="cn">'+st.nm+'<div class="cs">'+st.sz+'　'+st.desc+'</div></div>'+
+      '<div class="stars">'+(cleared?'👑':(prevOk?'':''))+'</div>';
+    row.querySelector('.stars').textContent = cleared ? '★' : '‥';
+    row.onclick=function(){ snd.tap(); startStage(st); };
+    wrap.appendChild(row);
+  });
+}
+function startStage(st){
+  setStage(st);
+  document.getElementById('gselect').style.display='none';
+  document.getElementById('gplay').style.display='';
+  document.getElementById('gbar').style.display='';
+  document.getElementById('gtitle').textContent=st.no+' '+st.nm;
+  // ばんの おおきさが かわるので つくり直す
+  const wrap=document.getElementById('gboardwrap'); wrap.innerHTML='';
+  const old=BOARDS.indexOf(gBoardEl); if(old>=0) BOARDS.splice(old,1);
+  gBoardEl=makeBoard(GW,GH,'bg');
+  wrap.appendChild(gBoardEl); fitBoard(gBoardEl);
+  gBoardEl.addEventListener('click', onCellClick);
+  newGame();
+  setStatus(st.hint);
 }
 function newGame(){ G=initGame(); gSel=null; gDropKind=null; gHist=[]; gBusy=false; drawGame(); setStatus('きみの ばん！ こまを タップしてね'); }
 function setStatus(t,warn){
@@ -978,7 +1072,7 @@ function checkEnd(){
   const side=G.turn;
   const mv=legalMoves(G,side,false);
   if(mv.length===0){ finish(1-side); return true; }
-  if(G.ply>=200){ finish(2); return true; }      // ながすぎる しょうぶは ひきわけ
+  if(G.ply>=(GW>=9?320:200)){ finish(2); return true; }   // ながすぎる しょうぶは ひきわけ（ほんばんは ながめ）
   return false;
 }
 const CROWN='<svg viewBox="0 0 120 78" style="width:104px;height:68px;display:block;margin:0 auto 8px">'+
@@ -989,8 +1083,21 @@ const CROWN='<svg viewBox="0 0 120 78" style="width:104px;height:68px;display:bl
  '<circle cx="60" cy="54" r="7" fill="#ff8fab"/></svg>';
 function finish(winner){
   G.over=1; gBusy=false; drawGame();
-  if(winner===0){ snd.win(); overlay(CROWN+'かった！ おめでとう','あいての おうを つかまえたよ',
-    [{t:'もういちど',cls:'green',f:function(){closeOverlay();newGame();}},{t:'ホームへ',cls:'',f:function(){closeOverlay();go('home');}}]); }
+  if(winner===0){
+    snd.win();
+    if(!save.stage) save.stage={};
+    const first=!save.stage[gStage.id];
+    save.stage[gStage.id]=true; persist();
+    const idx=STAGES.indexOf(gStage), next=STAGES[idx+1];
+    const btns=[];
+    if(next) btns.push({t:'つぎの ステップへ →',cls:'pink',f:function(){closeOverlay();startStage(next);}});
+    btns.push({t:'もういちど',cls:'green',f:function(){closeOverlay();newGame();}});
+    btns.push({t:'ステップ いちらん',cls:'',f:function(){closeOverlay();showStages();}});
+    overlay(CROWN+'かった！ おめでとう',
+      (first?'<b>'+gStage.no+' '+gStage.nm+'</b> クリア！<br>':'')+
+      (next? 'つぎは <b>'+next.no+' '+next.nm+'</b>（'+next.sz+'）<br>'+next.desc
+           : 'ほんしょうぎまで せいは！ もう しょうぎが させるよ'), btns);
+  }
   else if(winner===2){ overlay('ひきわけ！','ながい しょうぶに なったね。もういちど やって みよう',
     [{t:'もういちど',cls:'green',f:function(){closeOverlay();newGame();}},{t:'ホームへ',cls:'',f:function(){closeOverlay();go('home');}}]); }
   else { snd.lose(); overlay('まけちゃった…','「まった」で もどって やりなおせるよ',
@@ -1007,10 +1114,10 @@ function undo(){
 }
 function showRules(){
   snd.tap();
-  overlay('ミニしょうぎの ルール',
-   '・5×5の ちいさな しょうぎだよ<br>'+
+  overlay(gStage.no+' '+gStage.nm+'の ルール',
+   '・'+gStage.sz+'の ばん（'+gStage.desc+'）<br>'+
    '・とった こまは じぶんの こまとして うてる<br>'+
-   '・いちばん おくの れつに はいると パワーアップ（なり）できる<br>'+
+   '・おくから '+GZONE+'れつに はいる／出ると パワーアップ（なり）できる<br>'+
    '・おうを つかまえたら かち<br>'+
    '・ふは おなじ たてれつに 2まい うてないよ',
    [{t:'わかった',cls:'green',f:closeOverlay}]);
@@ -1036,7 +1143,10 @@ function closeOverlay(){ document.getElementById('ov').classList.remove('on'); }
 /* ---------------- しょきか ---------------- */
 window.__shogi={targets:targets,emptyBoard:emptyBoard,initGame:initGame,legalMoves:legalMoves,
   inCheck:inCheck,applyMove:applyMove,cloneS:cloneS,P:P,PROMO:PROMO,cpuMove:function(s){return cpuMove(s)},
-  get G(){return G;}, set G(v){G=v;}, dropMoves:dropMoves, evalS:evalS};
+  get G(){return G;}, set G(v){G=v;}, dropMoves:dropMoves, evalS:evalS,
+  STAGES:STAGES, setStage:setStage, startStage:function(st){return startStage(st);},
+  deadRank:deadRank, inZone:inZone, canPromote:canPromote, mustPromote:mustPromote,
+  get size(){return {W:GW,H:GH,zone:GZONE,stage:gStage.id};}};
 </script>
 </body>
 </html>
